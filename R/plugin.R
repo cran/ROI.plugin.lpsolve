@@ -1,9 +1,34 @@
+
+read.lp.lp <- function(file, ...) {
+    ROI.plugin.lpsolve::read.lp(file, type = "lp")
+}
+
+read.lp.mps <- function(file, ...) {
+    ROI.plugin.lpsolve::read.lp(file, type = "mps")
+}
+
+read.lp.freemps <- function(file, ...) {
+    ROI.plugin.lpsolve::read.lp(file, type = "freemps")
+}
+
+write.lp.lp <- function(x, file, ...) {
+    ROI.plugin.lpsolve::write.lp(x, file, type = "lp")   
+}
+
+write.lp.mps <- function(x, file, ...) {
+    ROI.plugin.lpsolve::write.lp(x, file, type = "mps")   
+}
+
+write.lp.freemps <- function(x, file, ...) {
+    ROI.plugin.lpsolve::write.lp(x, file, type = "freemps")   
+}
+
 build_bounds <- function(bo) {
-    ind <- sort(union(bo$lower$ind, bo$upper$ind))
-    lower <- double(length(ind))
-    upper <- rep.int(Inf, length(ind))
-    lower[which(bo$lower$ind %in% ind)] <- bo$lower$val
-    upper[which(bo$upper$ind %in% ind)] <- bo$upper$val
+    ind <- seq_len(bo$nobj)
+    lower <- double(bo$nobj)
+    upper <- rep.int(Inf, bo$nobj)
+    lower[bo$lower$ind] <- bo$lower$val
+    upper[bo$upper$ind] <- bo$upper$val
     list(lower=lower, upper=upper, ind=ind)
 }
 
@@ -45,8 +70,15 @@ map_verbose <- function(x) {
     return("neutral")
 }
 
+is.all_integer <- function(types) {
+    if ( is.null(types) ) {
+        return(FALSE)
+    }
+    all(types %in% c("B", "I"))
+}
+
 solve_OP <- function(x, control=list()) {
-    solver <- .ROI_plugin_get_solver_name( getPackageName() )
+    solver <- ROI_plugin_get_solver_name( getPackageName() )
 
     nr <- length(constraints(x))
     nc <- length(objective(x))
@@ -71,6 +103,7 @@ solve_OP <- function(x, control=list()) {
         if ( !is.null(xtypes[[typ]]) )
             set.type(lp, xtypes[[typ]], typ)
     }
+    all_integer <- if (is.all_integer(types(x))) TRUE else FALSE
 
     ## bounds (lp_solve has the lower bound default by zero)
     if ( !is.null(bounds(x)) ) {
@@ -116,37 +149,107 @@ solve_OP <- function(x, control=list()) {
         return(solver_call)
     }
 
-    status <- solve(lp)
+    if ( isTRUE(control$nsol_max > 1) ) {
+        ## return multiple solutions
+        solutions <- .find_up_to_n_binary_MILP_solutions(lp, x, control$nsol_max)
+        i <- which(!sapply(solutions, is.null))
+        solutions <- solutions[i]
+        class(solutions) <- c("lpsolve_solution_set", "OP_solution_set")
+        return(solutions)
+    } else {
+        ## return 1 solution
+        status <- solve(lp)
 
-    sol <- list()
-    sol$solution_count <- get.solutioncount(lp)
-    sol$solutions <- vector("list", sol$solution_count)
-    sol$dual_solutions <- vector("list", sol$solution_count)
-    for ( i in seq_len(sol$solution_count) ) {
-        select.solution(lp, i)
-        sol$solutions[[i]] <- get.variables(lp)
-        sol$dual_solutions[[i]] <- get.dual.solution(lp)
-    }
+        sol <- list()
+        sol$solution_count <- get.solutioncount(lp)
+        sol$solutions <- vector("list", sol$solution_count)
+        sol$dual_solutions <- vector("list", sol$solution_count)
+        for ( i in seq_len(sol$solution_count) ) {
+            select.solution(lp, i)
+            sol$solutions[[i]] <- get.variables(lp)
+            sol$dual_solutions[[i]] <- get.dual.solution(lp)
+        }
     
-    if ( all( x$types == "C" ) ) { ## these two functions are only for lp available
-        sol$sensitivity_objfun <- get.sensitivity.objex(lp)
-        sol$sensitivity_rhs <- get.sensitivity.rhs(lp)
-    }
-    sol$total_iter <- get.total.iter(lp)
-    sol$total_nodes <- get.total.nodes(lp)
+        if ( all( x$types == "C" ) ) { ## these two functions are only for lp available
+            sol$sensitivity_objfun <- get.sensitivity.objex(lp)
+            sol$sensitivity_rhs <- get.sensitivity.rhs(lp)
+        }
+        sol$total_iter <- get.total.iter(lp)
+        sol$total_nodes <- get.total.nodes(lp)
 
-    x.solution <- sol$solutions[[1L]]
-    optimum <- tryCatch({as.numeric(objective(x)(x.solution))}, 
-                        error=function(e) as.numeric(NA))
-    return( .ROI_plugin_canonicalize_solution( solution = x.solution, 
-                                               optimum  = optimum,
-                                               status   = status,
-                                               solver   = solver, 
-                                               message  = sol ) 
-    )
+        optimum <- objective_value(objective(x), sol$solutions[[1L]])
+
+        return( ROI_plugin_canonicalize_solution( solution = sol$solutions[[1L]], 
+                                                   optimum  = optimum,
+                                                   status   = status,
+                                                   solver   = solver, 
+                                                   message  = sol ) )
+    }
 }
 
-.ROI_plugin_solution_dual.lpsolve_solution <- function(x) {
+lp_solve <- function(lp) {
+    status <- solve(lp)
+    x <- vector("list", 5)
+    names(x) <- c("solution", "optimum", "status", "solver", "message")
+    x[["solution"]] <- get.variables(lp)
+    x[["optimum"]] <- get.objective(lp)
+    x[["status"]] <- status
+    x[["solver"]] <- "lpsolve"
+    dual <- tryCatch(get.dual.solution(lp),
+                     error = function(e) rep.int(NA, NROW(lp)))
+    x[["message"]] <- list(solution = x[["solution"]], 
+                           dual_solution = dual)
+    do.call(ROI_plugin_canonicalize_solution, x)
+}
+
+objective_value <- function(obj_fun, solution) {
+    tryCatch({as.numeric(obj_fun(solution))}, error=function(e) as.numeric(NA))
+}
+
+## nsol <- control$nsol
+.find_up_to_n_binary_MILP_solutions <- function(lp, x, nsol, tolerance = 1e-4) {
+    k <- which(types(x) == "B")
+    if ( length(k) == 0 ) {
+        stop("no 'binary' variables found")
+    }
+
+    solutions <- vector("list", nsol)
+    solutions[[1L]] <- lp_solve(lp)
+    if ( solutions[[1L]]$status$code != 0 ) {
+        return(solutions[[1L]])
+    }
+    obj_val <- solutions[[1L]]$objval
+
+    ## one row of A (A x <= b)
+    ak <- double(length(k))
+
+    for ( i in seq_len(nsol - 1L) ) {
+        sol <- solutions[[i]]$solution[k]
+        rhs <- sum(sol) - 1L
+        ak[sol == 1] <-  1
+        ak[sol == 0] <- -1
+        add.constraint(lp, xt = ak, type = "<=", rhs = rhs, indices = k)
+
+        sobj <- lp_solve(lp)
+        if ( sobj$status$code != 0 ) {
+            return(solutions)
+        }
+
+        ## if we get the same solution as last time we quit
+        if ( sum(abs(sobj$solution - solutions[[i]]$solution)) < tolerance ) {
+            return(solutions)
+        }
+
+        if ( abs(sobj$objval - obj_val) > tolerance ) {
+            return(solutions)
+        }
+
+        solutions[[i + 1L]] <- sobj
+    }
+    return(solutions)
+}
+
+ROI_plugin_solution_dual.lpsolve_solution <- function(x) {
     x[['message']][['dual_solutions']][[1L]]
 }
 
