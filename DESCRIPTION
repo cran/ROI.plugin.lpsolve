@@ -1,5 +1,5 @@
 Package: ROI.plugin.lpsolve
-Version: 0.3-0
+Version: 0.3-1
 Title: 'lp_solve' Plugin for the 'R' Optimization Infrastructure
 Author: Florian Schwendinger [aut, cre]
 Maintainer: Florian Schwendinger <FlorianSchwendinger@gmx.at>
@@ -11,6 +11,6 @@ Suggests: slam
 License: GPL-3
 URL: http://R-Forge.R-project.org/projects/roi
 NeedsCompilation: no
-Packaged: 2017-10-21 23:59:50 UTC; florian
+Packaged: 2018-01-16 16:32:33 UTC; florian
 Repository: CRAN
-Date/Publication: 2017-10-22 05:39:36 UTC
+Date/Publication: 2018-01-16 16:39:57 UTC
