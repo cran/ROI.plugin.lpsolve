@@ -150,7 +150,7 @@ solve_OP <- function(x, control = list()) {
 
     if ( isTRUE(control$nsol_max > 1) ) {
         ## return multiple solutions
-        solutions <- .find_up_to_n_binary_MILP_solutions(om, x, control$nsol_max)
+        solutions <- .find_up_to_n_binary_MILP_solutions(om, x, nsol = control$nsol_max)
         i <- which(!sapply(solutions, is.null))
         solutions <- solutions[i]
         class(solutions) <- c("lpsolve_solution_set", "OP_solution_set")
@@ -171,7 +171,9 @@ solve_OP <- function(x, control = list()) {
             }
         
             if ( all( x$types == "C" ) ) { ## these two functions are only for lp available
-                sol$sensitivity_objfun <- get.sensitivity.objex(om)
+                sol$sensitivity_objfun <- get.sensitivity.obj(om) 
+                ## NOTE: Get Sensitivity - Objective Extended
+                ## get.sensitivity.objex(om)
                 sol$sensitivity_rhs <- get.sensitivity.rhs(om)
             }
             sol$total_iter <- get.total.iter(om)
@@ -221,7 +223,7 @@ objective_value <- function(obj_fun, solution) {
     solutions <- vector("list", nsol)
     solutions[[1L]] <- lp_solve(om)
     if ( solutions[[1L]]$status$code != 0 ) {
-        return(solutions[[1L]])
+        return(solutions[1L])
     }
     obj_val <- solutions[[1L]]$objval
 
