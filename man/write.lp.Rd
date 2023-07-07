@@ -18,7 +18,7 @@ write.lp(x, file, type=c("lp", "mps", "freemps"))
   \code{"mps"} and \code{"freemps"}.
   Where it seems important to note that the \code{"lp"} format refers to
   \code{lpsolves} native file format 
-  (\url{http://lpsolve.sourceforge.net/5.5/lp-format.htm}) 
+  (\url{https://lpsolve.sourceforge.net/5.5/lp-format.htm}) 
   and not to the \code{CPLEX LP format}.
 }
 \examples{

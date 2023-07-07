@@ -97,9 +97,26 @@ get_primal_solution <- function(lprec, n_of_variables) {
 }
 
 
+remove_empty_rows <- function(x) {
+    cx <- constraints(x)
+    nr <- NROW(cx)
+    if (nr == 0L) return(x)
+    k <- setdiff(seq_len(nr), unique(cx$L$i))
+    if (length(k) == 0L) return(x)
+    cx$L <- cx$L[-k, ]
+    cx$dir <- cx$dir[-k]
+    cx$rhs <- cx$rhs[-k]
+    attr(cx, "n_L_constraints") <- NROW(cx$L)
+    x$constraints <- cx
+    x
+}
+
+
 solve_OP <- function(x, control = list()) {
     solver <- "lpsolve"
     use_presolve <- "presolve" %in% names(control)
+
+    x <- remove_empty_rows(x)
 
     nr <- length(constraints(x))
     nc <- length(objective(x))
@@ -109,10 +126,13 @@ solve_OP <- function(x, control = list()) {
 
     ## objective
     set.objfn(om, terms(objective(x))[['L']]$v, terms(objective(x))[['L']]$j)
-    
+
     ## constraints
-    for (i in seq_len(nr)) {
-        irow <- constraints(x)[['L']][i,]
+    cx <- constraints(x)
+    cxL <- as.data.frame(unclass(cx$L)[c("i", "j", "v")])
+    cxL <- split(cxL, cxL$i)
+    for (i in seq_along(cxL)) {
+        irow <- cxL[[i]]
         set.row(om, i, irow$v, irow$j)
     }
     set.rhs(om, constraints(x)[['rhs']], seq_len(nr))
@@ -339,18 +359,4 @@ read.lp <- function(file, type=c("lp", "mps", "freemps")) {
             types = ty, bounds = bo, maximum = is_maxi)
     x
 }
-
-
-library(lpSolveAPI)
-
-lps.model <- make.lp(0, 3)
-# xt <- c(6,2,4)
-# add.constraint(lps.model, xt, "<=", 150)
-# xt <- c(1,1,6)
-# add.constraint(lps.model, xt, ">=", 0)
-# xt <- c(4,5,4)
-# add.constraint(lps.model, xt, "=", 40)
-set.objfn(lps.model, c(-3,-4,-3))
-
-solve(lps.model)
 

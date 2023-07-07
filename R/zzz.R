@@ -12,6 +12,7 @@ make_MILP_signatures <- function()
     ROI_plugin_register_solver_control( solver, "dry_run", "X" )
     ROI_plugin_register_solver_control( solver, "nsol_max", "X" )
     ROI_plugin_register_solver_control( solver, "verbose", "verbose" )
+    ROI_plugin_register_solver_control( solver, "timeout", "max_time" )
 
     ROI_plugin_register_solver_control( solver, "anti.degen", "X" )
     ROI_plugin_register_solver_control( solver, "basis.crash", "X" )
@@ -39,7 +40,6 @@ make_MILP_signatures <- function()
     ROI_plugin_register_solver_control( solver, "scaling", "X" )
     ROI_plugin_register_solver_control( solver, "sense", "X" )
     ROI_plugin_register_solver_control( solver, "simplextype", "X" )
-    ROI_plugin_register_solver_control( solver, "timeout", "X" )
     invisible( TRUE )
 }
 

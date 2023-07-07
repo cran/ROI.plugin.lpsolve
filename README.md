@@ -1,7 +1,7 @@
 # ROI.plugin.lpsolve
 
-# Installation from Github
+## Installation from gitlab
 
 ```r
-remotes:::install_github("roigrp/ROI.plugin.lpsolve")
+remotes:::install_gitlab("roigrp/solver/ROI.plugin.lpsolve")
 ```
